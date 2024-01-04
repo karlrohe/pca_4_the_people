@@ -5,16 +5,21 @@ Karl Rohe
 
 The current approach to PCA (principal components analysis) is *matrix
 first*. This note begins to explore an alternative path, one that is
-*model first*. Essentially, any discussion of matrices is an
-intermediate step in current workflows. So, this is code that makes all
-of that transparent. In the end, the hope is that this makes PCA legible
-for folks that have not yet learned linear algebra (just like linear
-models). In this way, the hope of this project is that PCA becomes more
-legible and usable for a wider audience.
+*model first*. This is code proposes an alternative way to think about
+PCA that makes matrices transparent; completely hidden, unless you want
+to see the code.
 
-I am currently very inspired by this approach because (despite the fact
-that I love matrices and linear algebra) I find that this *model first*
-way of thinking is so much easier.
+I hope this makes PCA legible for folks that have not yet learned linear
+algebra (just like linear models are legible without solving linear
+systems of equations).
+
+I am personally inspired by this approach because (despite the fact that
+I love matrices and linear algebra) I find that this *model first* way
+of thinking is so much easier and more direct.
+
+This document gives an illustration. If you get bored, skip to the
+section titled “Interpreting the features with ggplot” and find the data
+analysis, where we analyze the popular `nycflights13` data with PCA.
 
 ``` r
 # be sure these packages are installed:
@@ -371,6 +376,8 @@ dates, the native space is a time series or a sequence. Let’s plot it
 there. I give my interpretation after the plots.
 
 ``` r
+embeddings = pca_count(1 ~ (month & day)*(dest), flights, k = 6)
+
 embeddings$row_features %>% 
   mutate(dd = make_date(day = day, month=month, year = 2013)) %>% 
   select(dd, contains("pc_")) %>% 
