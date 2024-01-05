@@ -33,7 +33,9 @@ The code is fast and nimble:
 ``` r
 source("pca_4_the_people.R")
 library(nycflights13)
-embeddings = pca_count(1 ~ (month & day)*(dest), flights, k = 6)
+embeddings = pca_count(1 ~ (month & day)*(dest), 
+                       flights, 
+                       k = 6)
 ```
 
 This performs PCA. The key innovation is the “formula”:
@@ -179,6 +181,9 @@ Making this function is a todo item.
 
 So, using the code is easy. You just need to specify a formula. It’s fun
 to think of other combinations and easy to try them out.
+
+There are three functions that you might like `diagnose`, `pick_dim`,
+and `plot` that are explained below.
 
 # A deeper look inside the code.
 

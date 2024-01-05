@@ -23,7 +23,9 @@ The code is fast and nimble:
 ```{r, cache=TRUE}
 source("pca_4_the_people.R")
 library(nycflights13)
-embeddings = pca_count(1 ~ (month & day)*(dest), flights, k = 6)
+embeddings = pca_count(1 ~ (month & day)*(dest), 
+                       flights, 
+                       k = 6)
 ```
 
 This performs PCA.  The key innovation is the "formula": `1 ~ (month & day)*(dest)`. 
@@ -88,6 +90,8 @@ p + geom_point(data = airport_dat, aes(x = lon, y = lat,
 Here `pc_1` should align with larger and smaller airports (bigger airports <-> more flights throughout the year).  `pc_2` is negative on Denver and Florida and positive in Maine.  Looking back at the time series plots, I interpret this to mean that people go to Denver (skiing) and Florida (beach) in the winter and Maine (coastline) in the summer.  `pc_3` picks up the "fly-over zone"... looking back at the time series, folks prefer to travel here during the work week. So, the blue areas are more weekend (vacation) destinations and the red areas are the fly-over. The other pc's are difficult for me to interpret (my guess is that they are weird artifacts of airline things... noise). We do see that the last three are heavily localized on a few airports, looking back at the pairs plots you can see this localization.  Given that, my sense is that they are not so interesting, but if I needed to make sense of them, I would print out their most extreme elements and dig into those airports.  Making this function is a todo item.
 
 So, using the code is easy. You just need to specify a formula.  It's fun to think of other combinations and easy to try them out.
+
+There are three functions that you might like `diagnose`, `pick_dim`, and `plot` that are explained below. 
 
 
 # A deeper look inside the code.
