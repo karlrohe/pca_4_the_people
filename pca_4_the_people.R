@@ -388,7 +388,18 @@ diagnose = function(fo, tib, make_plot = TRUE){
 
 
 # this computes the Z-scores for the cross-validated eigenvalues in 
+warning_message_pick_dim = 
+"the left side of the formula for pick_dim should be 1. 
+            
+Other variables on the left-hand-side are likely to create unreliable p-values. In many settings it likely still makes a good-bit of sense to have 1.  This code will still run, but you have been warned!"
 pick_dim = function(fo, tib, dimMax=20, num_bootstraps=2){
+  parsed_model =  parse_variables(fo, tib)
+  outcome_variables = parsed_model[[1]]
+  if(outcome_variables!="1"){
+    warning(warning_message_pick_dim)
+  }
+  
+  
   A = make_sparse_matrix_raw(fo, tib)$A
   gdim::eigcv(A = A, k_max = dimMax, laplacian= TRUE,num_bootstraps)
 }
