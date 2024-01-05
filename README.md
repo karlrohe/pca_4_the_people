@@ -17,9 +17,170 @@ I am personally inspired by this approach because (despite the fact that
 I love matrices and linear algebra) I find that this *model first* way
 of thinking is so much easier and more direct.
 
-This document gives an illustration. If you get bored, skip to the
-section titled “Interpreting the features with ggplot” and find the data
-analysis, where we analyze the popular `nycflights13` data with PCA.
+This document gives an illustration with a data analysis of the popular
+`nycflights13` data via PCA. Headline: we find two seasonal effects
+(annual and weekly) and also the “fly-over-zone” (midwest 4ever. ride or
+die \<3 much love to my midwest fam). Code details follow this analysis.
+
+(Disclaimer: this is very early in this project. So, the syntax and the
+code is likely to change a great deal. Input is very welcome about ways
+to improve it.)
+
+### PCA the nycflights.
+
+The code is fast and nimble:
+
+``` r
+source("pca_4_the_people.R")
+library(nycflights13)
+embeddings = pca_count(1 ~ (month & day)*(dest), flights, k = 6)
+```
+
+This performs PCA. The key innovation is the “formula”:
+`1 ~ (month & day)*(dest)`.
+
+This specifies the model that we want (i.e. the matrix for PCA). In
+particular, it will perform PCA on a matrix where the rows are indexed
+by `(month & day)`, two variables of the `flights` data. There are 365
+unique values of these. And the columns of the matrix are indexed by
+destinations `dest`, another variable in `flights`. There are about 100
+different destinations. There are multiple rows of `flights` with
+identical values of `month & day` and `dest` (e.g. lots of flights from
+LGA -\> LAX every day). So, the values of the matrix are a sum over the
+variable on the left side of the formula. Here, the variable is just
+`1`… so, the matrix counts the number of flights to that destination on
+that day.
+
+The output contains the pc’s and their loadings in a tidy format:
+
+``` r
+embeddings$row_features %>% sample_n(size = 3)
+```
+
+    ## # A tibble: 3 × 11
+    ##   month   day row_id degree weighted_degree pc_1_rows pc_2_rows pc_3_rows
+    ##   <int> <int>  <int>  <int>           <dbl>     <dbl>     <dbl>     <dbl>
+    ## 1     2     8    131     86             930      1.00     -1.38     0.920
+    ## 2     1    18     18     86             924      1.00     -1.35     0.909
+    ## 3     3    27    178     86             977      1.03     -1.18     1.04 
+    ## # ℹ 3 more variables: pc_4_rows <dbl>, pc_5_rows <dbl>, pc_6_rows <dbl>
+
+``` r
+embeddings$column_features %>% sample_n(size = 3)
+```
+
+    ## # A tibble: 3 × 10
+    ##   dest  col_id degree weighted_degree pc_1_columns pc_2_columns pc_3_columns
+    ##   <chr>  <int>  <int>           <dbl>        <dbl>        <dbl>        <dbl>
+    ## 1 XNA       28    314            1036        0.554        0.578        3.53 
+    ## 2 ORF       73    365            1536        0.689       -0.855       -0.108
+    ## 3 STL       43    365            4339        1.17         0.236        1.01 
+    ## # ℹ 3 more variables: pc_4_columns <dbl>, pc_5_columns <dbl>,
+    ## #   pc_6_columns <dbl>
+
+Because they are tidy, it makes them pretty easy to ggplot.
+
+First, let’s do the rows (i.e. dates). To interpret pc’s, it is best to
+plot it with contextual information and/or in the *native space*. For
+dates, the native space is a time series or a sequence. Let’s plot it
+there. I give my interpretation after the plots.
+
+``` r
+embeddings = pca_count(1 ~ (month & day)*(dest), flights, k = 6)
+
+embeddings$row_features %>% 
+  mutate(date = make_date(day = day, month=month, year = 2013)) %>% 
+  select(date, contains("pc_")) %>% 
+  pivot_longer(contains("pc_"), names_to = "pc_dimension", values_to = "loadings") %>% 
+  ggplot(aes(x = date, y = loadings)) + geom_line() + 
+  facet_wrap(~pc_dimension, scales= "free") + geom_smooth()
+```
+
+    ## `geom_smooth()` using method = 'loess' and formula = 'y ~ x'
+
+![](README_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+
+I always think of the first pc as the “mean”. What we see is that
+flights are more or less constant throughout the year (see y-axis). I
+presume that the oscillations are for the weekends. `pc_1` says that,
+across destinations, there are more flights during the work week and
+fewer flights on the weekends. The second pc gives a seasonal effect
+(fewer flights in winter, more in summer); importantly, after `pc_1`,
+some destinations will have negative values of this (i.e. more in the
+winter, fewer in the summer). The third pc is positive on weekend
+destinations (more flights on the weekends and fewer during the weekdays
+relative to `pc_1`). Again, like `pc_2` some destinations will have a
+negative value (i.e. more flights on the weekends and fewer during the
+weekdays relative to the previous two pc’s). The last three are harder
+to interpret. My uninformed guess is that it is some artifact of airline
+decisions. If you have a guess, I’d love to hear it. Also, later on with
+`pick_dim`, we have some evidence that they are noise.
+
+Now, let’s do the columns (i.e. destinations). The “native space” for
+destinations is a map. Let’s plot it there. Be sure you have `maps`
+installed.
+
+``` r
+airports %>% sample_n(size = 3)
+```
+
+    ## # A tibble: 3 × 8
+    ##   faa   name                                lat    lon   alt    tz dst   tzone  
+    ##   <chr> <chr>                             <dbl>  <dbl> <dbl> <dbl> <chr> <chr>  
+    ## 1 OTH   Southwest Oregon Regional Airport  43.4 -124.     17    -8 A     Americ…
+    ## 2 UMP   Indianapolis Metropolitan Airport  39.9  -86.0   811    -5 A     Americ…
+    ## 3 MMH   Mammoth Yosemite Airport           37.6 -119.   7128    -8 A     Americ…
+
+``` r
+# first, get the lat and lon for the airports:
+airport_dat = embeddings$column_features %>% 
+  left_join(airports %>% select(dest=faa, lat,lon)) %>% 
+  select(lat, lon, contains("_col")) %>% 
+  pivot_longer(contains("pc_"),
+               names_to = "pc_dimension", values_to = "loadings") %>% 
+  drop_na()
+```
+
+    ## Joining with `by = join_by(dest)`
+
+``` r
+library(maps)
+usa_map <- map_data("state")
+p <- ggplot() + 
+  geom_polygon(data = usa_map, aes(x = long, y = lat, group = group), 
+               fill = "white", color = "black") +
+  coord_fixed(1.3, xlim = c(-125, -65), ylim = c(25, 50)) 
+# i'm only keeping lower 48 states, dropping Anchorage and Honolulu.
+
+
+p + geom_point(data = airport_dat, aes(x = lon, y = lat, 
+                                       size = abs(loadings), color = loadings)) +
+  facet_wrap(~ pc_dimension)  +
+  scale_color_gradient2(low = "red", high = "blue", mid = "white")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+Here `pc_1` should align with larger and smaller airports (bigger
+airports \<-\> more flights throughout the year). `pc_2` is negative on
+Denver and Florida and positive in Maine. Looking back at the time
+series plots, I interpret this to mean that people go to Denver (skiing)
+and Florida (beach) in the winter and Maine (coastline) in the summer.
+`pc_3` picks up the “fly-over zone”… looking back at the time series,
+folks prefer to travel here during the work week. So, the blue areas are
+more weekend (vacation) destinations and the red areas are the fly-over.
+The other pc’s are difficult for me to interpret (my guess is that they
+are weird artifacts of airline things… noise). We do see that the last
+three are heavily localized on a few airports, looking back at the pairs
+plots you can see this localization. Given that, my sense is that they
+are not so interesting, but if I needed to make sense of them, I would
+print out their most extreme elements and dig into those airports.
+Making this function is a todo item.
+
+So, using the code is easy. You just need to specify a formula. It’s fun
+to think of other combinations and easy to try them out.
+
+# A deeper look inside the code.
 
 ``` r
 # be sure these packages are installed:
@@ -192,7 +353,7 @@ or column.
 diagnose(formula, flights)
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
     ## # A tibble: 6 × 3
     ##   measurement      dest `month & day`
@@ -226,7 +387,7 @@ cv_eigs = pick_dim(formula, flights, dimMax = 10,num_bootstraps = 5)
 plot(cv_eigs)
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 ``` r
 cv_eigs
@@ -240,16 +401,16 @@ cv_eigs
     ## 
     ##  ------------ Summary of Tests ------------
     ##   k           z        pvals         padj
-    ##   1 166.7382015 0.000000e+00 0.000000e+00
-    ##   2  13.0456829 3.362584e-39 3.362584e-39
-    ##   3   8.2594938 7.314574e-17 7.314574e-17
-    ##   4   3.9947133 3.238629e-05 3.238629e-05
-    ##   5   0.4845076 3.140128e-01 3.140128e-01
-    ##   6  -3.0294648 9.987751e-01 9.987751e-01
-    ##   7  -5.3966457 1.000000e+00 1.000000e+00
-    ##   8  -6.5058484 1.000000e+00 1.000000e+00
-    ##   9  -7.2124035 1.000000e+00 1.000000e+00
-    ##  10  -8.7714105 1.000000e+00 1.000000e+00
+    ##   1 166.1845273 0.000000e+00 0.000000e+00
+    ##   2  12.1121169 4.555594e-34 4.555594e-34
+    ##   3   8.1938419 1.265086e-16 1.265086e-16
+    ##   4   3.8044972 7.104625e-05 7.104625e-05
+    ##   5   0.8038613 2.107385e-01 2.107385e-01
+    ##   6  -2.2087939 9.864055e-01 9.864055e-01
+    ##   7  -4.9757947 9.999997e-01 9.999997e-01
+    ##   8  -6.5091221 1.000000e+00 1.000000e+00
+    ##   9  -7.0776155 1.000000e+00 1.000000e+00
+    ##  10  -8.4524784 1.000000e+00 1.000000e+00
 
 Notice that the top-line of the printout says that the estimated graph
 dimension is 4. So, we will use `k=6` and see that in this example they
@@ -295,9 +456,9 @@ sample_n(embeddings$row_features, size = 3)
     ## # A tibble: 3 × 11
     ##   month   day row_id degree weighted_degree pc_1_rows pc_2_rows pc_3_rows
     ##   <int> <int>  <int>  <int>           <dbl>     <dbl>     <dbl>     <dbl>
-    ## 1     5    15    227     86             967     1.03      0.231    -0.888
-    ## 2    11     9     71     80             715     0.890    -0.112     1.61 
-    ## 3    12    22    114     89             895     0.970    -0.706     1.59 
+    ## 1     5     5    217     88             912     0.990    0.0944    -0.167
+    ## 2    11     7     69     86             991     1.04     0.660     -0.332
+    ## 3     4    25    207     85             983     1.04    -0.0998    -0.570
     ## # ℹ 3 more variables: pc_4_rows <dbl>, pc_5_rows <dbl>, pc_6_rows <dbl>
 
 ``` r
@@ -307,9 +468,9 @@ sample_n(embeddings$column_features, size=3)
     ## # A tibble: 3 × 10
     ##   dest  col_id degree weighted_degree pc_1_columns pc_2_columns pc_3_columns
     ##   <chr>  <int>  <int>           <dbl>        <dbl>        <dbl>        <dbl>
-    ## 1 MSP       16    365            7185        1.50         0.528       -0.278
-    ## 2 HNL       47    365             707        0.470       -0.267        0.455
-    ## 3 SFO       12    365           13331        2.05         1.51         0.822
+    ## 1 CRW       79    138             138        0.160      -1.74        -2.02  
+    ## 2 CAK       58    365             864        0.519       0.0962      -0.0434
+    ## 3 BOS       14    365           15508        2.21        0.502       -2.14  
     ## # ℹ 3 more variables: pc_4_columns <dbl>, pc_5_columns <dbl>,
     ## #   pc_6_columns <dbl>
 
@@ -326,25 +487,25 @@ after all plots are displayed.
 plot(embeddings) 
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
 
     ## Press [Enter] to continue to the next plot...
 
-![](README_files/figure-gfm/unnamed-chunk-12-2.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-16-2.png)<!-- -->
 
     ## Press [Enter] to continue to the next plot...
 
     ## `geom_smooth()` using formula = 'y ~ s(x, bs = "cs")'
 
-![](README_files/figure-gfm/unnamed-chunk-12-3.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-16-3.png)<!-- -->
 
     ## Press [Enter] to continue to the next plot...
 
-![](README_files/figure-gfm/unnamed-chunk-12-4.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-16-4.png)<!-- -->
 
     ## Press [Enter] to continue to the next plot...
 
-![](README_files/figure-gfm/unnamed-chunk-12-5.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-16-5.png)<!-- -->
 
 These are the five plots:
 
@@ -365,105 +526,3 @@ These are the five plots:
     probability proportional to their leverage scores. It will plot up
     to `k=10` dimensions. If `k` is larger, then it plots the first 5
     and the last 5.
-
-### Interpreting the features with ggplot (for the people)
-
-It is fun and easy to use these `row_features` and `column_features`.
-
-First, let’s do the rows (i.e. dates). To interpret pc’s, it is best to
-plot it with contextual information and/or in the *native space*. For
-dates, the native space is a time series or a sequence. Let’s plot it
-there. I give my interpretation after the plots.
-
-``` r
-embeddings = pca_count(1 ~ (month & day)*(dest), flights, k = 6)
-
-embeddings$row_features %>% 
-  mutate(dd = make_date(day = day, month=month, year = 2013)) %>% 
-  select(dd, contains("pc_")) %>% 
-  pivot_longer(contains("pc_")) %>% 
-  ggplot(aes(x = dd, y = value)) + geom_line() + facet_wrap(~name, scales= "free") + geom_smooth()
-```
-
-    ## `geom_smooth()` using method = 'loess' and formula = 'y ~ x'
-
-![](README_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
-
-I always think of the first pc as the “mean”. What we see is that
-flights are more or less constant throughout the year (see y-axis). I
-presume that the oscillations are for the weekends; on average
-(i.e. across destinations), there are more flights during the work week
-and fewer flights on the weekends. The second pc gives a seasonal effect
-(fewer flights in winter, more in summer); remember after `pc_1`, some
-destinations will have negative values of this (i.e. more in the winter,
-fewer in the summer). The third pc is positive on weekend destinations
-(more flights on the weekends and fewer during the weekdays relative to
-`pc_1`). The last three are harder to interpret. My uninformed guess is
-that it is some artifact of airline decisions. If you have a guess, I’d
-love to hear it.
-
-Now, let’s do the columns (i.e. destinations). The “native space” for
-destinations is a map. Let’s plot it there. Be sure you have `maps`
-installed.
-
-``` r
-airports %>% sample_n(size = 3)
-```
-
-    ## # A tibble: 3 × 8
-    ##   faa   name                   lat    lon   alt    tz dst   tzone            
-    ##   <chr> <chr>                <dbl>  <dbl> <dbl> <dbl> <chr> <chr>            
-    ## 1 ITH   Ithaca Tompkins Rgnl  42.5  -76.5  1099    -5 A     America/New_York 
-    ## 2 Y51   Municipal Airport     43.6  -90.9  1292    -6 A     America/Chicago  
-    ## 3 KGK   Koliganek Airport     59.7 -157.    269    -9 A     America/Anchorage
-
-``` r
-# first, get the lat and lon for the airports:
-airport_dat = embeddings$column_features %>% 
-  left_join(airports %>% select(dest=faa, lat,lon)) %>% 
-  select(lat, lon, contains("_col")) %>% 
-  pivot_longer(contains("pc_")) %>% 
-  drop_na()
-```
-
-    ## Joining with `by = join_by(dest)`
-
-``` r
-library(maps)
-```
-
-    ## 
-    ## Attaching package: 'maps'
-    ## 
-    ## The following object is masked from 'package:purrr':
-    ## 
-    ##     map
-
-``` r
-usa_map <- map_data("state")
-p <- ggplot() + 
-  geom_polygon(data = usa_map, aes(x = long, y = lat, group = group), fill = "white", color = "black") +
-  coord_fixed(1.3, xlim = c(-125, -65), ylim = c(25, 50)) # i'm only keeping lower 48 states, dropping Anchorage and Honolulu.
-
-
-p + geom_point(data = airport_dat, aes(x = lon, y = lat, size = abs(value), color = value)) +
-  facet_wrap(~ name)  +
-  scale_color_gradient2(low = "red", high = "blue", mid = "white")
-```
-
-![](README_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
-
-Here `pc_1` likely aligns with larger and smaller airports. `pc_2` is
-negative on Denver and Florida and positive in Maine. Looking back at
-the time series plots, I interpret this to mean that people go to Denver
-(skiing) and Florida (beach) in the winter and Maine (coastline) in the
-summer. `pc_3` picks up the “fly-over zone”… looking back at the time
-series, folks only travel here the work week; the blue areas are more
-weekend (vacation) destinations and the red areas are the fly-over. The
-other pc’s are difficult for me to interpret (my guess is that they are
-weird artifacts of airline things). We do see that the last three are
-heavily localized on a few airports, looking back at the pairs plots you
-can see this localization. Given that, my sense is that they are not so
-interesting, but if I needed to make sense of them, I would print out
-their most extreme elements and dig into those airports. Making this
-function is a todo item.
