@@ -7,7 +7,7 @@ library(tidyverse)
 library(irlba)
 library(Matrix)
 library(gdim)
-library(softImpute)
+# library(softImpute)
 
 # pca_count / pca_sum 
 # 
@@ -395,7 +395,7 @@ Other variables on the left-hand-side are likely to create unreliable p-values. 
 pick_dim = function(fo, tib, dimMax=20, num_bootstraps=2){
   parsed_model =  parse_variables(fo, tib)
   outcome_variables = parsed_model[[1]]
-  if(outcome_variables!="1"){
+  if(outcome_variables!="outcome_unweighted_1"){
     warning(warning_message_pick_dim)
   }
   
@@ -546,8 +546,11 @@ remove_L_normalization = function(s_svd, A, orthogonalize= FALSE){
   # if using L in  s_svd(L) ,
   #  then we might want to remove that normalization in the output. 
   #  this function does that.
-  deg_row <- Matrix::rowSums(abs(A))
-  deg_col <- Matrix::colSums(abs(A))
+  # deg_row <- Matrix::rowSums(abs(A))
+  # deg_col <- Matrix::colSums(abs(A))
+  deg_row <- Matrix::rowSums(A!=0)
+  deg_col <- Matrix::colSums(A!=0)
+  
   
   tau_row <- mean(deg_row)
   tau_col <- mean(deg_col)
