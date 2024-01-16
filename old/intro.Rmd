@@ -1,0 +1,46 @@
+---
+title: "Spectral Embeddings; a simple introduction to PCA"
+author: "Karl Rohe"
+date: "2023-11-02"
+output: pdf_document
+---
+
+This paper proposes a new way to understand and teach principal components analysis (PCA). Typically, we start teaching PCA by assuming that one has a ``matrix''. But the language of matrices creates an artificial barrier for otential users;  we want to teach PCA to people that do not yet understand matrices and linear algebra.  
+
+Consider an analogy to linear regression. The "users" of linear regression have a language that is distinct from that of "developers."  In particular, the "developers" are the researchers studying the theory and methods surrounding linear models. They prefer to express the models and algorithms with matrix notation, linear algebra, and the notorious formula xxxy. However, most users of linear models are far more comfortable with the statistical model (outside of any notion of matrices); $y_i = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \epsilon_i$.  Then, the code to fit these models is \textbf{model-first}, not \textbf{matrix-first}.  In particular, in the function that fits the linear model, you express the model as a formula, expressed in variable names.  For example,the function \texttt{lm} in \texttt{R} takes the expression \texttt{outcome ~ feature1 + feature2}; SAS is similar and so is statsmodels in python. Along with the formula expression of the model, the user also provides a "spreadsheet of data" where the variable names in the formula are column/variable names in the spreadsheet.  This interface that accepts a ``formula'' that emphasizes the model and the variables in that model.  This interface does not ask the user to construct any matrices; the data is simply a spreadsheet. 
+
+Pedagogically, model-first enables us to teach linear regression to students before matrices and linear algebra. In the language of computer scientists, the statistical model provides a layer of abstraction that obviates the need to understand the technical details underneath. 
+
+Principal Component Analysis (PCA) has never been taught in this way.  We are going to try and we are going to call it spectral embeddings. 
+
+Suppose you have a table with (at least) three columns: user_id, product_id, number_purchased, where user_id and product_id could be considered character strings that identify users and products.  
+
+\texttt{embed2(number\_purchased \~ user\_id * product\_id, data =)}
+
+\footnote{In the classical textbooks, PCA estimates a low rank approximation to the covariance matrix of a multivariate Gaussian.  However, this low rank approximation does not parameterize the model; so, the model fails to explain why we "fit" a PCA.  The fact that it is strange to say "we fit a PCA" demonstrates this point. Finally, if you want to do without matrices, you can't start talking about covariance matrices.  You can fit a factor model with PCA; in fact, it is the MLE when the ``idiosyncratic'' errors are homoscedastic and Gaussian.  Our path starts from factor analysis, but does not end there.}
+
+Spectral embeddings allude to the factor model that PCA fits. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
